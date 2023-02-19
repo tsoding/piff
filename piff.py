@@ -19,16 +19,9 @@ def trace_tables(cache, actions):
         print()
     print()
 
-if __name__ == '__main__':
-    program = sys.argv[0]
-    if len(sys.argv) < 3:
-        print(f"Usage: {program} <file1> <file2>")
-        print(f"ERROR: not enough files to compare were provided")
-        exit(1)
-    lines1 = read_entire_file(sys.argv[1]).splitlines()
-    lines2 = read_entire_file(sys.argv[2]).splitlines()
-    m1 = len(lines1)
-    m2 = len(lines2)
+def edit_distance(s1, s2):
+    m1 = len(s1)
+    m2 = len(s2)
 
     distances = []
     actions = []
@@ -51,7 +44,7 @@ if __name__ == '__main__':
 
     for n1 in range(1, m1 + 1):
         for n2 in range(1, m2 + 1):
-            if lines1[n1-1] == lines2[n2-1]:
+            if s1[n1-1] == s2[n2-1]:
                 distances[n1][n2] = distances[n1-1][n2-1]
                 actions[n1][n2] = IGNORE
                 continue      # ignore
@@ -75,15 +68,109 @@ if __name__ == '__main__':
         action = actions[n1][n2]
         if action == ADD:
             n2 -= 1
-            patch.append((ADD, n2, lines2[n2]))
+            patch.append((ADD, n2, s2[n2]))
         elif action == REMOVE:
             n1 -= 1
-            patch.append((REMOVE, n1, lines1[n1]))
+            patch.append((REMOVE, n1, s1[n1]))
         elif action == IGNORE:
             n1 -= 1
             n2 -= 1
         else:
             assert False, "unreachable"
     patch.reverse()
+    return patch
+
+def diff_subcommand(program, args):
+    if len(args) < 2:
+        print(f"Usage: {program} diff <file1> <file2>")
+        print(f"ERROR: no files to compare were provided for diff subcommand")
+        exit(1)
+
+    file_path1, *args = args
+    file_path2, *args = args
+    lines1 = read_entire_file(file_path1).splitlines()
+    lines2 = read_entire_file(file_path2).splitlines()
+
+    patch = edit_distance(lines1, lines2)
+
     for (action, n, line) in patch:
         print(f"{action} {n} {line}")
+
+def patch_subcommand(program, args):
+    assert False, "not implemented"
+
+def help_subcommand(program, args):
+    if len(args) == 0:
+        usage(program)
+        return
+
+    subcommand, *args = args
+    if subcommand not in SUBCOMMANDS:
+        usage(program)
+        print(f"ERROR: unknown subcommand {subcommand}")
+        exit(1)
+
+    print(f"Usage: {subcommand} {SUBCOMMANDS[subcommand].signature}")
+    print(f"    {SUBCOMMANDS[subcommand].description}")
+
+class Subcommand:
+    def __init__(self, run, signature, description):
+        self.run = run
+        self.signature = signature
+        self.description = description
+
+SUBCOMMANDS = {
+    "diff": Subcommand(
+        run = diff_subcommand,
+        signature = "<file1> <file2>",
+        description = "print the difference between the files to stdout",
+    ),
+    "patch": Subcommand(
+        run = patch_subcommand,
+        signature = "<file> <file.patch>",
+        description = "patch the file with the given patch",
+    ),
+    "help": Subcommand(
+        run = help_subcommand,
+        signature = "[subcommand]",
+        description = "print this help",
+    )
+}
+
+def usage(program):
+    print(f"Usage: {program} <SUBCOMMAND> [OPTIONS]")
+    print(f"Subcommands:")
+    width = max([len(f'{name} {subcmd.signature}')
+                 for (name, subcmd) in SUBCOMMANDS.items()])
+    for (name, subcmd) in SUBCOMMANDS.items():
+        command = f'{name} {subcmd.signature}'.ljust(width)
+        print(f'    {command}    {subcmd.description}')
+
+def main():
+    assert len(sys.argv) > 0
+    program, *args = sys.argv
+
+    if len(args) == 0:
+        usage(program)
+        print(f"ERROR: no subcommand is provided")
+        exit(1)
+
+    subcommand, *args = args
+
+    if subcommand not in SUBCOMMANDS:
+        usage(program)
+        print(f"ERROR: unknown subcommand {subcommand}")
+        candidates = [(name, len(edit_distance(subcommand, name)))
+                      for (name, definition) in SUBCOMMANDS.items()
+                      if len(edit_distance(subcommand, name)) < 3]
+        candidates.sort(key=lambda x: x[1])
+        if len(candidates) > 0:
+            print("Maybe you meant:")
+            for (name, _) in candidates:
+                print(f"    {name}")
+        exit(1)
+
+    SUBCOMMANDS[subcommand].run(program, args)
+
+if __name__ == '__main__':
+    main()

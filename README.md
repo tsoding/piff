@@ -5,5 +5,7 @@ Simple File Diff Tool in Python. It's very slow (cause it's uses O(N²) algorith
 ## Quick Start
 
 ```console
-$ ./piff.py <file1> <file2>
+$ ./piff.py diff file1.txt file2.txt > file.patch
+$ ./piff.py patch file1.txt file.patch
+$ diff -u file1.txt file2.txt  # verify that file1.txt was actually turned into file2.txt
 ```
