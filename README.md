@@ -35,5 +35,5 @@ R 7 mollit anim id est laborum.
 
 ## References
 
-- https://en.wikipedia.org/wiki/Levenshtein\_distance
+- https://en.wikipedia.org/wiki/Levenshtein_distance
 - https://www.nathaniel.ai/myers-diff/
