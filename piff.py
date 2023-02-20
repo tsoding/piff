@@ -3,6 +3,8 @@
 import sys
 import re
 
+# TODO: add type signatures everywhere
+
 def read_entire_file(file_path):
     with open(file_path) as f:
         return f.read()
@@ -81,107 +83,111 @@ def edit_distance(s1, s2):
     patch.reverse()
     return patch
 
-def diff_subcommand(program, args):
-    if len(args) < 2:
-        print(f"Usage: {program} diff <file1> <file2>")
-        print(f"ERROR: not enough files were provided to generate a diff")
-        exit(1)
-
-    file_path1, *args = args
-    file_path2, *args = args
-    lines1 = read_entire_file(file_path1).splitlines()
-    lines2 = read_entire_file(file_path2).splitlines()
-
-    patch = edit_distance(lines1, lines2)
-
-    for (action, n, line) in patch:
-        print(f"{action} {n} {line}")
-
 PATCH_LINE_REGEXP = re.compile("([AR]) (\d+) (.*)")
 
-def line_as_patch_action(line):
-    return PATCH_LINE_REGEXP.match(line)
-
-def patch_subcommand(program, args):
-    if len(args) < 2:
-        print(f"Usage: {program} patch <file> <file.patch>")
-        print(f"ERROR: not enough arguments were provided to patch a file")
-    file_path, *args = args
-    patch_path, *args = args
-
-    lines = read_entire_file(file_path).splitlines()
-    patch = []
-    ok = True
-    for (row, line) in enumerate(read_entire_file(patch_path).splitlines()):
-        if len(line) == 0:
-            continue
-        m = PATCH_LINE_REGEXP.match(line)
-        if m is None:
-            print(f"{patch_path}:{row + 1}: Invalid patch action: {line}")
-            ok = False
-            continue
-        patch.append((m.group(1), int(m.group(2)), m.group(3)))
-    if not ok:
-        exit(1)
-
-    for (action, row, line) in reversed(patch):
-        if action == ADD:
-            lines.insert(row, line)
-        elif action == REMOVE:
-            lines.pop(row)
-        else:
-            assert False, "unreachable"
-
-    with open(file_path, 'w') as f:
-        for line in lines:
-            f.write(line)
-            f.write('\n')
-
-def help_subcommand(program, args):
-    if len(args) == 0:
-        usage(program)
-        return
-
-    subcommand, *args = args
-    if subcommand not in SUBCOMMANDS:
-        usage(program)
-        print(f"ERROR: unknown subcommand {subcommand}")
-        exit(1)
-
-    print(f"Usage: {subcommand} {SUBCOMMANDS[subcommand].signature}")
-    print(f"    {SUBCOMMANDS[subcommand].description}")
-
 class Subcommand:
-    def __init__(self, run, signature, description):
-        self.run = run
+    def __init__(self, name, signature, description):
+        self.name = name
         self.signature = signature
         self.description = description
 
-SUBCOMMANDS = {
-    "diff": Subcommand(
-        run = diff_subcommand,
-        signature = "<file1> <file2>",
-        description = "print the difference between the files to stdout",
-    ),
-    "patch": Subcommand(
-        run = patch_subcommand,
-        signature = "<file> <file.patch>",
-        description = "patch the file with the given patch",
-    ),
-    "help": Subcommand(
-        run = help_subcommand,
-        signature = "[subcommand]",
-        description = "print this help",
-    )
-}
+class DiffSubcommand(Subcommand):
+    def __init__(self):
+        super().__init__("diff", "<file1> <file2>", "print the difference between the files to stdout")
+
+    def run(self, program, args):
+        if len(args) < 2:
+            print(f"Usage: {program} {self.name} {self.signature}")
+            print(f"ERROR: not enough files were provided to {self.name}")
+            # TODO: get rid of all the explicit exit-s
+            exit(1)
+
+        file_path1, *args = args
+        file_path2, *args = args
+        lines1 = read_entire_file(file_path1).splitlines()
+        lines2 = read_entire_file(file_path2).splitlines()
+
+        patch = edit_distance(lines1, lines2)
+
+        for (action, n, line) in patch:
+            print(f"{action} {n} {line}")
+
+class PatchSubcommand(Subcommand):
+    def __init__(self):
+        super().__init__("patch", "<file> <file.patch>", "patch the file with the given patch")
+
+    def run(self, program, args):
+        if len(args) < 2:
+            print(f"Usage: {program} {self.name} {self.signature}")
+            print(f"ERROR: not enough arguments were provided to {self.name} a file")
+            exit(1)
+
+        file_path, *args = args
+        patch_path, *args = args
+
+        lines = read_entire_file(file_path).splitlines()
+        patch = []
+        ok = True
+        for (row, line) in enumerate(read_entire_file(patch_path).splitlines()):
+            if len(line) == 0:
+                continue
+            m = PATCH_LINE_REGEXP.match(line)
+            if m is None:
+                print(f"{patch_path}:{row + 1}: Invalid patch action: {line}")
+                ok = False
+                continue
+            patch.append((m.group(1), int(m.group(2)), m.group(3)))
+        if not ok:
+            exit(1)
+
+        for (action, row, line) in reversed(patch):
+            if action == ADD:
+                lines.insert(row, line)
+            elif action == REMOVE:
+                lines.pop(row)
+            else:
+                assert False, "unreachable"
+
+        with open(file_path, 'w') as f:
+            for line in lines:
+                f.write(line)
+                f.write('\n')
+
+class HelpSubcommand(Subcommand):
+    def __init__(self):
+        super().__init__("help", "[subcommand]", "print this help message")
+
+    def run(self, program, args):
+        if len(args) == 0:
+            usage(program)
+            return
+
+        subcmd_name, *args = args
+        for subcmd in SUBCOMMANDS:
+            if subcmd.name == subcmd_name:
+                print(f"Usage: {subcmd.name} {subcmd.signature}")
+                print(f"    {subcmd.description}")
+                return
+
+        usage(program)
+        # TODO: print subcommand candidates in help subcommand
+        print(f"ERROR: unknown subcommand {subcmd_name}")
+        exit(1)
+
+
+SUBCOMMANDS = [
+    DiffSubcommand(),
+    PatchSubcommand(),
+    HelpSubcommand(),
+]
 
 def usage(program):
     print(f"Usage: {program} <SUBCOMMAND> [OPTIONS]")
     print(f"Subcommands:")
-    width = max([len(f'{name} {subcmd.signature}')
-                 for (name, subcmd) in SUBCOMMANDS.items()])
-    for (name, subcmd) in SUBCOMMANDS.items():
-        command = f'{name} {subcmd.signature}'.ljust(width)
+    width = max([len(f'{subcmd.name} {subcmd.signature}')
+                 for subcmd in SUBCOMMANDS])
+    for subcmd in SUBCOMMANDS:
+        command = f'{subcmd.name} {subcmd.signature}'.ljust(width)
         print(f'    {command}    {subcmd.description}')
 
 def main():
@@ -193,22 +199,24 @@ def main():
         print(f"ERROR: no subcommand is provided")
         exit(1)
 
-    subcommand, *args = args
+    subcmd_name, *args = args
 
-    if subcommand not in SUBCOMMANDS:
-        usage(program)
-        print(f"ERROR: unknown subcommand {subcommand}")
-        candidates = [(name, len(edit_distance(subcommand, name)))
-                      for (name, definition) in SUBCOMMANDS.items()
-                      if len(edit_distance(subcommand, name)) < 3]
-        candidates.sort(key=lambda x: x[1])
-        if len(candidates) > 0:
-            print("Maybe you meant:")
-            for (name, _) in candidates:
-                print(f"    {name}")
-        exit(1)
+    for subcmd in SUBCOMMANDS:
+        if subcmd.name == subcmd_name:
+            subcmd.run(program, args)
+            return
 
-    SUBCOMMANDS[subcommand].run(program, args)
+    usage(program)
+    print(f"ERROR: unknown subcommand {subcmd_name}")
+    candidates = [(subcmd.name, len(edit_distance(subcmd_name, subcmd.name)))
+                  for subcmd in SUBCOMMANDS
+                  if len(edit_distance(subcmd_name, subcmd.name)) < 3]
+    candidates.sort(key=lambda x: x[1])
+    if len(candidates) > 0:
+        print("Maybe you meant:")
+        for (name, _) in candidates:
+            print(f"    {name}")
+    exit(1)
 
 if __name__ == '__main__':
     main()
