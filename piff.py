@@ -171,8 +171,8 @@ class HelpSubcommand(Subcommand):
         subcmd_name, *args = args
 
         subcmd = find_subcommand(subcmd_name)
-        if isinstance(subcmd, Subcommand):
-            print(f"Usage: {subcmd.name} {subcmd.signature}")
+        if subcmd is not None:
+            print(f"Usage: {program} {subcmd.name} {subcmd.signature}")
             print(f"    {subcmd.description}")
             return 0
 
@@ -223,7 +223,7 @@ def main() -> int:
     subcmd_name, *args = args
 
     subcmd = find_subcommand(subcmd_name)
-    if isinstance(subcmd, Subcommand):
+    if subcmd is not None:
         return subcmd.run(program, args)
 
     usage(program)
