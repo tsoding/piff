@@ -2,7 +2,7 @@
 
 import sys
 import re
-from typing import TypeVar, List, Sequence, Tuple, Union
+from typing import TypeVar, List, Sequence, Tuple, Optional
 from typing_extensions import Literal
 
 def read_entire_file(file_path: str) -> str:
@@ -176,13 +176,9 @@ class HelpSubcommand(Subcommand):
             print(f"    {subcmd.description}")
             return 0
 
-        candidates: List[str] = subcmd
         usage(program)
         print(f"ERROR: unknown subcommand {subcmd_name}")
-        if len(candidates) > 0:
-            print("Maybe you meant:")
-            for name in candidates:
-                print(f"    {name}")
+        suggest_closest_subcommand_if_exists(subcmd_name)
         return 1
 
 SUBCOMMANDS: List[Subcommand] = [
@@ -200,14 +196,20 @@ def usage(program: str) -> None:
         command = f'{subcmd.name} {subcmd.signature}'.ljust(width)
         print(f'    {command}    {subcmd.description}')
 
-def find_subcommand(subcmd_name: str) -> Union[Subcommand, List[str]]:
+def suggest_closest_subcommand_if_exists(subcmd_name: str) -> None:
+    candidates = [subcmd.name
+                  for subcmd in SUBCOMMANDS
+                  if len(edit_distance(subcmd_name, subcmd.name)) < 3]
+    if len(candidates) > 0:
+        print("Maybe you meant:")
+        for name in candidates:
+            print(f"    {name}")
+
+def find_subcommand(subcmd_name: str) -> Optional[Subcommand]:
     for subcmd in SUBCOMMANDS:
         if subcmd.name == subcmd_name:
             return subcmd
-
-    return [subcmd.name
-            for subcmd in SUBCOMMANDS
-            if len(edit_distance(subcmd_name, subcmd.name)) < 3]
+    return None
 
 def main() -> int:
     assert len(sys.argv) > 0
@@ -224,13 +226,9 @@ def main() -> int:
     if isinstance(subcmd, Subcommand):
         return subcmd.run(program, args)
 
-    candidates: List[str] = subcmd
     usage(program)
     print(f"ERROR: unknown subcommand {subcmd_name}")
-    if len(candidates) > 0:
-        print("Maybe you meant:")
-        for name in candidates:
-            print(f"    {name}")
+    suggest_closest_subcommand_if_exists(subcmd_name)
     return 1
 
 # TODO: some sort of automatic testing
