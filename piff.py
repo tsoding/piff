@@ -2,7 +2,7 @@
 
 import sys
 import re
-from typing import *
+from typing import TypeVar, List, Sequence, Tuple, Union
 from typing_extensions import Literal
 
 def read_entire_file(file_path: str) -> str:
@@ -166,20 +166,24 @@ class HelpSubcommand(Subcommand):
     def run(self, program: str, args: List[str]) -> int:
         if len(args) == 0:
             usage(program)
-            return 1
+            return 0
 
         subcmd_name, *args = args
-        for subcmd in SUBCOMMANDS:
-            if subcmd.name == subcmd_name:
-                print(f"Usage: {subcmd.name} {subcmd.signature}")
-                print(f"    {subcmd.description}")
-                return 0
 
+        subcmd = find_subcommand(subcmd_name)
+        if isinstance(subcmd, Subcommand):
+            print(f"Usage: {subcmd.name} {subcmd.signature}")
+            print(f"    {subcmd.description}")
+            return 0
+
+        candidates: List[str] = subcmd
         usage(program)
-        # TODO: print subcommand candidates in help subcommand
         print(f"ERROR: unknown subcommand {subcmd_name}")
+        if len(candidates) > 0:
+            print("Maybe you meant:")
+            for name in candidates:
+                print(f"    {name}")
         return 1
-
 
 SUBCOMMANDS: List[Subcommand] = [
     DiffSubcommand(),
@@ -196,6 +200,15 @@ def usage(program: str) -> None:
         command = f'{subcmd.name} {subcmd.signature}'.ljust(width)
         print(f'    {command}    {subcmd.description}')
 
+def find_subcommand(subcmd_name: str) -> Union[Subcommand, List[str]]:
+    for subcmd in SUBCOMMANDS:
+        if subcmd.name == subcmd_name:
+            return subcmd
+
+    return [subcmd.name
+            for subcmd in SUBCOMMANDS
+            if len(edit_distance(subcmd_name, subcmd.name)) < 3]
+
 def main() -> int:
     assert len(sys.argv) > 0
     program, *args = sys.argv
@@ -207,22 +220,20 @@ def main() -> int:
 
     subcmd_name, *args = args
 
-    for subcmd in SUBCOMMANDS:
-        if subcmd.name == subcmd_name:
-            subcmd.run(program, args)
-            return 0
+    subcmd = find_subcommand(subcmd_name)
+    if isinstance(subcmd, Subcommand):
+        return subcmd.run(program, args)
 
+    candidates: List[str] = subcmd
     usage(program)
     print(f"ERROR: unknown subcommand {subcmd_name}")
-    candidates = [(subcmd.name, len(edit_distance(subcmd_name, subcmd.name)))
-                  for subcmd in SUBCOMMANDS
-                  if len(edit_distance(subcmd_name, subcmd.name)) < 3]
-    candidates.sort(key=lambda x: x[1])
     if len(candidates) > 0:
         print("Maybe you meant:")
-        for (name, _) in candidates:
+        for name in candidates:
             print(f"    {name}")
     return 1
+
+# TODO: some sort of automatic testing
 
 if __name__ == '__main__':
     exit(main())
