@@ -232,6 +232,7 @@ def main() -> int:
     return 1
 
 # TODO: some sort of automatic testing
+# TODO: verify the lines of R actions
 
 if __name__ == '__main__':
     exit(main())
